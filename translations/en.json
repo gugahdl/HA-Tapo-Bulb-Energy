@@ -1,0 +1,34 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Select Tapo Bulb",
+        "description": "Choose the Tapo bulb you want to monitor. The TP-Link integration must be set up first.",
+        "data": {
+          "device_id": "Tapo Bulb"
+        }
+      }
+    },
+    "abort": {
+      "no_tplink_devices": "No TP-Link integration found. Please set up the TP-Link (Tapo) integration first.",
+      "already_configured": "This bulb is already being monitored."
+    },
+    "error": {
+      "no_tplink_entry": "Could not find the TP-Link integration entry for this device. Please reload the TP-Link integration and try again."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Change Monitored Bulb",
+        "description": "Select a different Tapo bulb to monitor.",
+        "data": {
+          "device_id": "Tapo Bulb"
+        }
+      }
+    },
+    "error": {
+      "no_tplink_entry": "Could not find the TP-Link integration entry for this device."
+    }
+  }
+}
