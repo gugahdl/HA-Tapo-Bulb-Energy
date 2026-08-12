@@ -2,6 +2,5 @@
   "name": "Tapo Bulb Energy",
   "content_in_root": true,
   "homeassistant": "2023.1.0",
-  "iot_class": "local_polling",
   "render_readme": true
 }

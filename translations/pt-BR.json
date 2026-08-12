@@ -1,0 +1,34 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Selecione a Lâmpada Tapo",
+        "description": "Escolha a lâmpada Tapo que deseja monitorar. A integração TP-Link precisa estar configurada primeiro.",
+        "data": {
+          "device_id": "Lâmpada Tapo"
+        }
+      }
+    },
+    "abort": {
+      "no_tplink_devices": "Nenhuma integração TP-Link encontrada. Configure a integração TP-Link (Tapo) primeiro.",
+      "already_configured": "Esta lâmpada já está sendo monitorada."
+    },
+    "error": {
+      "no_tplink_entry": "Não foi possível encontrar a entrada da integração TP-Link para este dispositivo. Recarregue a integração TP-Link e tente novamente."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Trocar Lâmpada Monitorada",
+        "description": "Selecione uma lâmpada Tapo diferente para monitorar.",
+        "data": {
+          "device_id": "Lâmpada Tapo"
+        }
+      }
+    },
+    "error": {
+      "no_tplink_entry": "Não foi possível encontrar a entrada da integração TP-Link para este dispositivo."
+    }
+  }
+}

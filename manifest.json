@@ -1,11 +1,12 @@
 {
   "domain": "tapo_bulb_energy",
   "name": "Tapo Bulb Energy",
-  "version": "2.0.0",
-  "documentation": "https://github.com/gugahdl/ha-tapo-bulb-energy",
-  "requirements": [],
-  "after_dependencies": ["tplink"],
   "codeowners": ["@gugahdl"],
+  "config_flow": true,
+  "dependencies": ["tplink"],
+  "documentation": "https://github.com/gugahdl/ha-tapo-bulb-energy",
   "iot_class": "local_polling",
-  "config_flow": true
+  "issue_tracker": "https://github.com/gugahdl/ha-tapo-bulb-energy/issues",
+  "requirements": [],
+  "version": "2.1.0"
 }

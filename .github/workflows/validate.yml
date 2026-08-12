@@ -1,0 +1,40 @@
+name: Validate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "0 0 * * 0"
+  workflow_dispatch:
+
+jobs:
+  hassfest:
+    name: Hassfest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # This repo uses HACS "content_in_root" layout (integration files live at
+      # repo root, see hacs.json). Hassfest expects a custom_components/<domain>
+      # tree, so stage a copy in that shape before validating.
+      - name: Arrange files into custom_components layout
+        run: |
+          mkdir -p custom_components/tapo_bulb_energy
+          mv __init__.py config_flow.py const.py manifest.json sensor.py icon.png strings.json translations custom_components/tapo_bulb_energy/
+      - uses: home-assistant/actions/hassfest@master
+
+  hacs:
+    name: HACS
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # The "brands" and "topics" checks require actions outside this
+      # repo's code (a PR to home-assistant/brands, and GitHub repository
+      # topic settings — see README Roadmap) and only gate eligibility for
+      # the curated HACS default store, not installation via a HACS custom
+      # repository. continue-on-error keeps this job informational instead
+      # of permanently blocking PRs on those two external prerequisites.
+      - uses: hacs/action@main
+        continue-on-error: true
+        with:
+          category: integration
