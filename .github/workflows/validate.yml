@@ -28,11 +28,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # The "brands" and "topics" checks require actions outside this
+      # repo's code (a PR to home-assistant/brands, and GitHub repository
+      # topic settings — see README Roadmap) and only gate eligibility for
+      # the curated HACS default store, not installation via a HACS custom
+      # repository. continue-on-error keeps this job informational instead
+      # of permanently blocking PRs on those two external prerequisites.
       - uses: hacs/action@main
+        continue-on-error: true
         with:
           category: integration
-          # brands/topics require actions outside this repo (a PR to
-          # home-assistant/brands, and GitHub repo topics settings) and
-          # are only required for the curated HACS default store, not for
-          # installing via a HACS custom repository. Skip until done.
-          ignore: brands,topics
