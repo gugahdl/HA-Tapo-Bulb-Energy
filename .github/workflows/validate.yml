@@ -20,8 +20,7 @@ jobs:
       - name: Arrange files into custom_components layout
         run: |
           mkdir -p custom_components/tapo_bulb_energy
-          cp __init__.py config_flow.py const.py manifest.json sensor.py icon.png strings.json custom_components/tapo_bulb_energy/
-          cp -r translations custom_components/tapo_bulb_energy/
+          mv __init__.py config_flow.py const.py manifest.json sensor.py icon.png strings.json translations custom_components/tapo_bulb_energy/
       - uses: home-assistant/actions/hassfest@master
 
   hacs:
@@ -32,3 +31,8 @@ jobs:
       - uses: hacs/action@main
         with:
           category: integration
+          # brands/topics require actions outside this repo (a PR to
+          # home-assistant/brands, and GitHub repo topics settings) and
+          # are only required for the curated HACS default store, not for
+          # installing via a HACS custom repository. Skip until done.
+          ignore: brands,topics

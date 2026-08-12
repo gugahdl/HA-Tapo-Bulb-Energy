@@ -79,7 +79,8 @@ Contributions welcome — these are known gaps, not blockers for normal use:
 - [ ] `diagnostics.py` for one-click debug info export from the UI
 - [ ] Automated tests (`pytest-homeassistant-custom-component`)
 - [ ] Auto-remove/notify when the linked TP-Link device or entry is deleted
-- [ ] Submit the integration icon to [home-assistant/brands](https://github.com/home-assistant/brands) for the default icon set
+- [ ] Add GitHub repository topics (e.g. `home-assistant`, `hacs`, `tplink`, `tapo`) — required for HACS default-store eligibility
+- [ ] Submit the integration icon to [home-assistant/brands](https://github.com/home-assistant/brands) for the default icon set — also required for HACS default-store eligibility
 - [ ] Additional language translations beyond en/pt-BR
 
 ## License
