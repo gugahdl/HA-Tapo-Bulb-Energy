@@ -1,0 +1,34 @@
+name: Validate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "0 0 * * 0"
+  workflow_dispatch:
+
+jobs:
+  hassfest:
+    name: Hassfest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # This repo uses HACS "content_in_root" layout (integration files live at
+      # repo root, see hacs.json). Hassfest expects a custom_components/<domain>
+      # tree, so stage a copy in that shape before validating.
+      - name: Arrange files into custom_components layout
+        run: |
+          mkdir -p custom_components/tapo_bulb_energy
+          cp __init__.py config_flow.py const.py manifest.json sensor.py icon.png strings.json custom_components/tapo_bulb_energy/
+          cp -r translations custom_components/tapo_bulb_energy/
+      - uses: home-assistant/actions/hassfest@master
+
+  hacs:
+    name: HACS
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hacs/action@main
+        with:
+          category: integration
