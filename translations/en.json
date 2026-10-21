@@ -1,34 +1,38 @@
 {
   "config": {
+    "flow_title": "{name}",
     "step": {
       "user": {
         "title": "Select Tapo Bulb",
-        "description": "Choose the Tapo bulb you want to monitor. The TP-Link integration must be set up first.",
+        "description": "Choose the Tapo bulb you want to monitor. Only compatible bulbs from the TP-Link integration that are not monitored yet are listed.",
         "data": {
-          "device_id": "Tapo Bulb"
+          "tplink_entry_id": "Tapo Bulb"
         }
+      },
+      "discovery_confirm": {
+        "title": "Tapo bulb found",
+        "description": "Start monitoring energy and on-time for {name}?"
       }
     },
     "abort": {
       "no_tplink_devices": "No TP-Link integration found. Please set up the TP-Link (Tapo) integration first.",
-      "already_configured": "This bulb is already being monitored."
-    },
-    "error": {
-      "no_tplink_entry": "Could not find the TP-Link integration entry for this device. Please reload the TP-Link integration and try again."
+      "no_bulbs_available": "No compatible bulb left to add. All supported TP-Link bulbs are already monitored, or they are offline right now.",
+      "already_configured": "This bulb is already being monitored.",
+      "already_in_progress": "This bulb is already being set up."
     }
   },
   "options": {
     "step": {
       "init": {
         "title": "Change Monitored Bulb",
-        "description": "Select a different Tapo bulb to monitor.",
+        "description": "Select a different Tapo bulb to monitor. The sensors of the new bulb start with a fresh history.",
         "data": {
-          "device_id": "Tapo Bulb"
+          "tplink_entry_id": "Tapo Bulb"
         }
       }
     },
-    "error": {
-      "no_tplink_entry": "Could not find the TP-Link integration entry for this device."
+    "abort": {
+      "no_bulbs_available": "No compatible bulb available right now."
     }
   }
 }

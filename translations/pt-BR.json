@@ -1,34 +1,38 @@
 {
   "config": {
+    "flow_title": "{name}",
     "step": {
       "user": {
         "title": "Selecione a Lâmpada Tapo",
-        "description": "Escolha a lâmpada Tapo que deseja monitorar. A integração TP-Link precisa estar configurada primeiro.",
+        "description": "Escolha a lâmpada Tapo que deseja monitorar. Só aparecem lâmpadas compatíveis da integração TP-Link que ainda não estão sendo monitoradas.",
         "data": {
-          "device_id": "Lâmpada Tapo"
+          "tplink_entry_id": "Lâmpada Tapo"
         }
+      },
+      "discovery_confirm": {
+        "title": "Lâmpada Tapo encontrada",
+        "description": "Começar a monitorar energia e tempo ligada de {name}?"
       }
     },
     "abort": {
       "no_tplink_devices": "Nenhuma integração TP-Link encontrada. Configure a integração TP-Link (Tapo) primeiro.",
-      "already_configured": "Esta lâmpada já está sendo monitorada."
-    },
-    "error": {
-      "no_tplink_entry": "Não foi possível encontrar a entrada da integração TP-Link para este dispositivo. Recarregue a integração TP-Link e tente novamente."
+      "no_bulbs_available": "Nenhuma lâmpada compatível para adicionar. Todas as lâmpadas TP-Link suportadas já estão monitoradas ou estão offline agora.",
+      "already_configured": "Esta lâmpada já está sendo monitorada.",
+      "already_in_progress": "Esta lâmpada já está sendo configurada."
     }
   },
   "options": {
     "step": {
       "init": {
         "title": "Trocar Lâmpada Monitorada",
-        "description": "Selecione uma lâmpada Tapo diferente para monitorar.",
+        "description": "Selecione uma lâmpada Tapo diferente para monitorar. Os sensores da nova lâmpada começam com histórico novo.",
         "data": {
-          "device_id": "Lâmpada Tapo"
+          "tplink_entry_id": "Lâmpada Tapo"
         }
       }
     },
-    "error": {
-      "no_tplink_entry": "Não foi possível encontrar a entrada da integração TP-Link para este dispositivo."
+    "abort": {
+      "no_bulbs_available": "Nenhuma lâmpada compatível disponível agora."
     }
   }
 }

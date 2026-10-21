@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -12,14 +11,9 @@ from homeassistant.components.sensor import (
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import UnitOfEnergy, UnitOfTime
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.device_registry import CONNECTION_NETWORK_MAC
-from homeassistant.helpers.entity import DeviceInfo
+from homeassistant.helpers.device_registry import CONNECTION_NETWORK_MAC, DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.helpers.update_coordinator import CoordinatorEntity, DataUpdateCoordinator
-from homeassistant.util import dt as dt_util
-
-from .const import DOMAIN
 
 
 @dataclass
@@ -29,7 +23,7 @@ class TapoSensorDescription:
     name: str
     unit: str
     device_class: SensorDeviceClass | None
-    state_class: SensorStateClass
+    state_class: SensorStateClass | None
     icon: str | None = None
 
 
@@ -63,7 +57,8 @@ SENSOR_DESCRIPTIONS: list[TapoSensorDescription] = [
         name="Energia Hoje",
         unit=UnitOfEnergy.KILO_WATT_HOUR,
         device_class=SensorDeviceClass.ENERGY,
-        state_class=SensorStateClass.TOTAL,
+        # Contador diario que zera a meia-noite: o recorder detecta o reset sozinho
+        state_class=SensorStateClass.TOTAL_INCREASING,
         icon="mdi:lightning-bolt",
     ),
     TapoSensorDescription(
@@ -71,7 +66,8 @@ SENSOR_DESCRIPTIONS: list[TapoSensorDescription] = [
         name="Energia 7 Dias",
         unit=UnitOfEnergy.KILO_WATT_HOUR,
         device_class=SensorDeviceClass.ENERGY,
-        state_class=SensorStateClass.TOTAL,
+        # Janela movel (cai quando um dia antigo sai da conta): sem estatistica de soma
+        state_class=None,
         icon="mdi:lightning-bolt",
     ),
     TapoSensorDescription(
@@ -79,7 +75,7 @@ SENSOR_DESCRIPTIONS: list[TapoSensorDescription] = [
         name="Energia 30 Dias",
         unit=UnitOfEnergy.KILO_WATT_HOUR,
         device_class=SensorDeviceClass.ENERGY,
-        state_class=SensorStateClass.TOTAL,
+        state_class=None,
         icon="mdi:lightning-bolt",
     ),
 ]
@@ -100,13 +96,14 @@ async def async_setup_entry(
             data.name,
             data.device_mac,
             data.device_id,
+            data.host_key,
         )
         for description in SENSOR_DESCRIPTIONS
     ]
     async_add_entities(entities)
 
 
-class TapoBulbEnergySensor(CoordinatorEntity, RestoreEntity, SensorEntity):
+class TapoBulbEnergySensor(CoordinatorEntity, SensorEntity):
     """Sensor de energia de uma lampada Tapo."""
 
     def __init__(
@@ -116,6 +113,7 @@ class TapoBulbEnergySensor(CoordinatorEntity, RestoreEntity, SensorEntity):
         device_name: str,
         device_mac: str,
         device_id: str,
+        host_key: str,
     ) -> None:
         """Inicializa o sensor."""
         super().__init__(coordinator)
@@ -123,16 +121,12 @@ class TapoBulbEnergySensor(CoordinatorEntity, RestoreEntity, SensorEntity):
         self._attr_name = f"{device_name} {description.name}"
 
         # Preserva o mesmo unique_id do codigo YAML para manter historico
-        host_key = coordinator.name.replace("tapo_bulb_energy_", "")
         self._attr_unique_id = f"tapo_energy_{host_key}_{description.key}"
 
         self._attr_native_unit_of_measurement = description.unit
         self._attr_device_class = description.device_class
         self._attr_state_class = description.state_class
         self._attr_icon = description.icon
-
-        # Usado para detectar quando o firmware resetou (today_energy)
-        self._last_value: float | None = None
 
         # Vincula ao mesmo device que a integracao tplink registrou
         if device_id:
@@ -144,26 +138,6 @@ class TapoBulbEnergySensor(CoordinatorEntity, RestoreEntity, SensorEntity):
                 connections={(CONNECTION_NETWORK_MAC, device_mac)},
             )
 
-    async def async_added_to_hass(self) -> None:
-        """Restaura o ultimo valor conhecido apos reinicio do HA."""
-        await super().async_added_to_hass()
-        if (last_state := await self.async_get_last_state()) is not None:
-            try:
-                self._last_value = float(last_state.state)
-            except (ValueError, TypeError):
-                self._last_value = None
-
-    def _handle_coordinator_update(self) -> None:
-        """Detecta reset do firmware (today_energy) e sinaliza last_reset."""
-        if self._description.key == "today_energy" and self.coordinator.data:
-            value = self.coordinator.data.get("today_energy")
-            if value is not None:
-                if self._last_value is not None and value < self._last_value:
-                    # Firmware resetou a meia-noite — sinaliza oficialmente
-                    self._attr_last_reset = dt_util.utcnow()
-                self._last_value = value
-        super()._handle_coordinator_update()
-
     @property
     def native_value(self) -> float | None:
         """Retorna o valor atual do sensor."""
@@ -171,7 +145,3 @@ class TapoBulbEnergySensor(CoordinatorEntity, RestoreEntity, SensorEntity):
             return None
         return self.coordinator.data.get(self._description.key)
 
-    @property
-    def extra_state_attributes(self) -> dict[str, Any]:
-        """Atributos extras."""
-        return {"source": "get_device_usage via tplink session"}

@@ -3,19 +3,26 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Any
 
-from homeassistant.config_entries import ConfigEntry
+from homeassistant.config_entries import (
+    SOURCE_INTEGRATION_DISCOVERY,
+    ConfigEntry,
+    ConfigEntryState,
+)
 from homeassistant.const import CONF_HOST, CONF_NAME, Platform
-from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ConfigEntryNotReady
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.exceptions import ConfigEntryError, ConfigEntryNotReady
+from homeassistant.helpers import config_validation as cv, discovery_flow
 from homeassistant.helpers.device_registry import format_mac
+from homeassistant.helpers.start import async_at_started
+from homeassistant.helpers.typing import ConfigType
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .const import CONF_TPLINK_ENTRY_ID, DOMAIN, SCAN_INTERVAL, TPLINK_DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 PLATFORMS = [Platform.SENSOR]
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 
 @dataclass
@@ -26,6 +33,7 @@ class TapoBulbEnergyData:
     device_mac: str
     name: str
     host: str
+    host_key: str
 
 
 def _get_device_from_runtime(runtime_data):
@@ -43,6 +51,9 @@ def _get_device_from_runtime(runtime_data):
             return coord, device
 
     # Fallback: varre todos os atributos em busca de obj com device.protocol
+    _LOGGER.warning(
+        "[tapo_bulb_energy] Estrutura do runtime_data do tplink mudou; usando fallback"
+    )
     for attr in dir(runtime_data):
         if attr.startswith("_"):
             continue
@@ -59,6 +70,52 @@ def _get_device_from_runtime(runtime_data):
     return None, None
 
 
+def supports_usage(tplink_entry: ConfigEntry) -> bool:
+    """Indica se o device de uma entrada tplink carregada expoe get_device_usage."""
+    if tplink_entry.state is not ConfigEntryState.LOADED:
+        return False
+    _, device = _get_device_from_runtime(getattr(tplink_entry, "runtime_data", None))
+    return device is not None and "get_device_usage" in device.internal_state
+
+
+@callback
+def async_available_bulbs(
+    hass: HomeAssistant, keep_tplink_entry_id: str | None = None
+) -> dict[str, str]:
+    """Lampadas tplink compativeis que ainda nao sao monitoradas.
+
+    Retorna {tplink_entry_id: titulo}. keep_tplink_entry_id permanece na lista
+    mesmo ja configurado (usado pelo options flow para a lampada atual).
+    """
+    configured = {
+        entry.data.get(CONF_TPLINK_ENTRY_ID)
+        for entry in hass.config_entries.async_entries(DOMAIN, include_ignore=False)
+    }
+    return {
+        entry.entry_id: entry.title
+        for entry in hass.config_entries.async_entries(TPLINK_DOMAIN)
+        if (entry.entry_id == keep_tplink_entry_id or entry.entry_id not in configured)
+        and supports_usage(entry)
+    }
+
+
+async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
+    """Oferece como descobertas as lampadas tplink compativeis ao iniciar o HA."""
+
+    @callback
+    def _async_discover(_hass: HomeAssistant) -> None:
+        for tplink_entry_id in async_available_bulbs(hass):
+            discovery_flow.async_create_flow(
+                hass,
+                DOMAIN,
+                context={"source": SOURCE_INTEGRATION_DISCOVERY},
+                data={CONF_TPLINK_ENTRY_ID: tplink_entry_id},
+            )
+
+    async_at_started(hass, _async_discover)
+    return True
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Configura a integracao a partir de um config entry."""
     tplink_entry_id = entry.data[CONF_TPLINK_ENTRY_ID]
@@ -67,7 +124,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     tplink_entry = hass.config_entries.async_get_entry(tplink_entry_id)
     if tplink_entry is None:
-        raise ConfigEntryNotReady(
+        raise ConfigEntryError(
             f"[tapo_bulb_energy] Entry tplink {tplink_entry_id} nao encontrado."
         )
 
@@ -89,26 +146,53 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         name, host, device_id,
     )
 
-    # Nome do coordinator = mesmo formato do YAML para preservar unique_ids e historico
+    # Mesmo formato do YAML nos unique_ids dos sensores, para preservar o historico
     host_key = host.replace(".", "_")
 
-    async def async_update_data() -> dict[str, Any]:
-        """Le get_device_usage reutilizando o protocolo tplink existente."""
-        try:
-            result = await device.protocol.query({"get_device_usage": None})
-            usage = result.get("get_device_usage", {})
-            time_data = usage.get("time_usage", {})
-            power_data = usage.get("power_usage", {})
-            return {
-                "today_runtime":  time_data.get("today", 0),
-                "past7_runtime":  time_data.get("past7", 0),
-                "past30_runtime": time_data.get("past30", 0),
-                "today_energy":   round(power_data.get("today_mwh", 0) / 1_000_000, 4),
-                "past7_energy":   round(power_data.get("past7_mwh",  0) / 1_000_000, 4),
-                "past30_energy":  round(power_data.get("past30_mwh", 0) / 1_000_000, 4),
-            }
-        except Exception as err:
-            raise UpdateFailed(f"[tapo_bulb_energy] Falha ao ler {host}: {err}") from err
+    async def async_update_data() -> dict[str, float | int | None]:
+        """Le get_device_usage do cache que o tplink ja atualiza a cada 5 s.
+
+        O device e buscado a cada ciclo porque o tplink cria um objeto novo
+        quando recarrega (troca de IP, credenciais, reload manual).
+        """
+        tplink_entry = hass.config_entries.async_get_entry(tplink_entry_id)
+        if tplink_entry is None or tplink_entry.state is not ConfigEntryState.LOADED:
+            raise UpdateFailed(f"[tapo_bulb_energy] tplink nao carregado para {host}")
+        coord, device = _get_device_from_runtime(tplink_entry.runtime_data)
+        if device is None or not getattr(coord, "last_update_success", True):
+            raise UpdateFailed(f"[tapo_bulb_energy] {host} indisponivel")
+
+        usage = device.internal_state.get("get_device_usage")
+        if not usage:
+            # Normalmente nao acontece: o python-kasa ja pede get_device_usage
+            try:
+                result = await device.protocol.query({"get_device_usage": None})
+            except Exception as err:
+                raise UpdateFailed(
+                    f"[tapo_bulb_energy] Falha ao ler {host}: {err}"
+                ) from err
+            usage = result.get("get_device_usage") or {}
+
+        time_data = usage.get("time_usage") or {}
+        power_data = usage.get("power_usage") or {}
+
+        def kwh(period: str) -> float | None:
+            if (mwh := power_data.get(f"{period}_mwh")) is not None:
+                return round(mwh / 1_000_000, 4)
+            if (wh := power_data.get(period)) is not None:
+                return round(wh / 1_000, 4)
+            return None
+
+        # Campo ausente vira None (estado desconhecido), nunca 0: um 0 falso
+        # seguido do valor real seria contado como reset e duplicaria o consumo.
+        return {
+            "today_runtime": time_data.get("today"),
+            "past7_runtime": time_data.get("past7"),
+            "past30_runtime": time_data.get("past30"),
+            "today_energy": kwh("today"),
+            "past7_energy": kwh("past7"),
+            "past30_energy": kwh("past30"),
+        }
 
     coordinator = DataUpdateCoordinator(
         hass,
@@ -125,6 +209,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         device_mac=device_mac,
         name=name,
         host=host,
+        host_key=host_key,
     )
 
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
