@@ -8,9 +8,9 @@ A Home Assistant custom integration that adds energy and on-time usage sensors f
 
 ## Why does this exist?
 
-Home Assistant's built-in **TP-Link** integration is powered by [python-kasa](https://github.com/python-kasa/python-kasa). That library calls the device's `get_device_usage` API to report accumulated on-time and energy consumption — but it only wires that call up for **smart plugs** (via the `Emeter`/`Energy` modules). For **bulbs**, `get_device_usage` is never queried, even though the bulb's firmware supports it and returns real data.
+Home Assistant's built-in **TP-Link** integration is powered by [python-kasa](https://github.com/python-kasa/python-kasa). For Tapo bulbs, python-kasa already fetches the device's `get_device_usage` response (accumulated on-time and estimated energy) on every update, but it does not expose that data as sensors.
 
-This integration doesn't reimplement a device protocol or add new network connections — it reuses the TP-Link integration's already-authenticated session for the same device and issues the missing `get_device_usage` query directly:
+This integration doesn't reimplement a device protocol or add new network connections. It reads that response from the TP-Link integration's cached device state (falling back to a direct query over the same session only if the cache is empty):
 
 ```json
 {
@@ -23,7 +23,7 @@ This integration doesn't reimplement a device protocol or add new network connec
 
 ## Prerequisites
 
-- Home Assistant 2023.1 or later
+- Home Assistant 2024.11 or later
 - The built-in **TP-Link** integration already set up with your Tapo bulb
 
 ## Installation
@@ -46,10 +46,12 @@ This integration doesn't reimplement a device protocol or add new network connec
 
 1. Go to **Settings → Devices & Services → Add Integration**
 2. Search for **Tapo Bulb Energy**
-3. Pick your bulb from the device selector (only TP-Link devices are listed — the host/IP is resolved automatically, no manual typing)
+3. Pick your bulb from the list. Only compatible TP-Link bulbs that are not monitored yet are listed, and the host/IP is resolved automatically.
 4. Done — six sensors are created for that bulb
 
-To monitor another bulb, add the integration again and pick a different device. To swap which bulb an existing entry monitors, use its **Configure** button — no need to remove and re-add it.
+**Automatic discovery:** when Home Assistant starts, every compatible TP-Link bulb that is not monitored yet shows up under **Settings → Devices & Services → Discovered**. Click **Add** to start monitoring it, or **Ignore** to stop being asked.
+
+To monitor another bulb, add the integration again (or accept its discovery card). To swap which bulb an existing entry monitors, use its **Configure** button. The new bulb's sensors start with a fresh history, because sensor IDs are tied to the bulb's IP.
 
 ## Sensors
 
@@ -62,12 +64,14 @@ To monitor another bulb, add the integration again and pick a different device. 
 | Energia 7 Dias | kWh | Energy consumed over the past 7 days |
 | Energia 30 Dias | kWh | Energy consumed over the past 30 days |
 
-Energy sensors use `state_class: total` with automatic midnight-reset detection: when the firmware's daily counter drops, the sensor emits a fresh `last_reset` so Home Assistant's energy dashboard handles the rollover correctly.
+**Energia Hoje** uses `state_class: total_increasing`, so Home Assistant's statistics and Energy dashboard handle the firmware's midnight reset automatically. The 7- and 30-day sensors are rolling windows (they go down when an old day drops out), so they have no state class and no long-term sum statistics; use **Energia Hoje** in the Energy dashboard.
+
+The bulb has no power meter: these values are the firmware's own estimates. There is no instantaneous power (W) reading on Tapo bulbs.
 
 ## Notes
 
-- Polls every 5 minutes
-- Reuses the TP-Link integration's device session — no extra credentials, ports, or connections
+- Updates every 5 minutes from the TP-Link integration's cached state — no extra credentials, ports, or connections
+- Sensors become unavailable while the bulb is offline (for example, switched off at the wall)
 - Sensor `unique_id`s are host-based, preserving history across restarts
 - UI is available in English and Portuguese (pt-BR); other languages fall back to English
 - If you remove the underlying TP-Link device/entry, this integration's sensors will start failing updates until you remove or reconfigure the entry — it does not currently detect and self-remove in that case (see Roadmap)
